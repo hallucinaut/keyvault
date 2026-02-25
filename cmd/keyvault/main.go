@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/hallucinaut/keyvault/pkg/lifecycle"
 	"github.com/hallucinaut/keyvault/pkg/storage"
@@ -67,7 +68,7 @@ Examples:
   keyvault list
   keyvault rotate key-123
   keyvault schedule key-123 --policy policy-90-days
-`, "keyvault")
+`)
 }
 
 func generateKey() {
@@ -216,7 +217,7 @@ func rotateKey() {
 
 	// Simulate rotation
 	fmt.Println("Simulating key rotation...")
-	newKey, err := manager.RotateKey(key.ID, "new-key-123", "Scheduled rotation")
+	newKey, err := manager.RotateKey(key.ID)
 	if err != nil {
 		fmt.Printf("Error rotating key: %v\n", err)
 		return

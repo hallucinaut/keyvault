@@ -4,8 +4,6 @@ package lifecycle
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"time"
 )
@@ -25,11 +23,11 @@ const (
 type KeyStatus string
 
 const (
-	StatusGenerated   KeyStatus = "generated"
-	StatusActive      KeyStatus = "active"
-	StatusDeprecated  KeyStatus = "deprecated"
-	StatusRevoked     KeyStatus = "revoked"
-	StatusDestroyed   KeyStatus = "destroyed"
+	StatusGenerated  KeyStatus = "generated"
+	StatusActive     KeyStatus = "active"
+	StatusDeprecated KeyStatus = "deprecated"
+	StatusRevoked    KeyStatus = "revoked"
+	StatusDestroyed  KeyStatus = "destroyed"
 )
 
 // KeyUsage represents key usage purposes.
@@ -42,37 +40,38 @@ const (
 	UsageVerify       KeyUsage = "verify"
 	UsageKeyAgreement KeyUsage = "key_agreement"
 	UsageAll          KeyUsage = "all"
-)
+) // KeyUsage constants
 
 // KeyLifecycle represents a key's lifecycle information.
 type KeyLifecycle struct {
-	ID             string
-	Algorithm      KeyAlgorithm
-	KeySize        int
-	Status         KeyStatus
-	CreatedAt      time.Time
-	ActivatedAt    time.Time
-	DeactivatedAt  *time.Time
-	ExpiresAt      time.Time
-	RotatedAt      []time.Time
-	DestroyedAt    *time.Time
-	Usage          []KeyUsage
-	Owner          string
-	Description    string
-	Metadata       map[string]string
+	ID            string
+	Algorithm     KeyAlgorithm
+	KeySize       int
+	Status        KeyStatus
+	CreatedAt     time.Time
+	ActivatedAt   time.Time
+	DeactivatedAt *time.Time
+	ExpiresAt     time.Time
+	RotatedAt     []time.Time
+	DestroyedAt   *time.Time
+	Usage         []KeyUsage
+	Owner         string
+	Description   string
+	Metadata      map[string]string
+	OldKeyID      string
 }
 
 // Key represents a cryptographic key.
 type Key struct {
-	ID          string
-	PublicKey   interface{}
-	PrivateKey  interface{}
-	Lifecycle   *KeyLifecycle
-	Algorithm   KeyAlgorithm
-	KeySize     int
-	Status      KeyStatus
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
+	ID         string
+	PublicKey  interface{}
+	PrivateKey interface{}
+	Lifecycle  *KeyLifecycle
+	Algorithm  KeyAlgorithm
+	KeySize    int
+	Status     KeyStatus
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
 }
 
 // KeyLifecycleManager manages key lifecycle.
@@ -170,7 +169,10 @@ func (m *KeyLifecycleManager) GenerateKey(algorithm KeyAlgorithm, keySize int, u
 
 	switch algorithm {
 	case AlgorithmRSA:
-		publicKey, privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+		key, generateErr := rsa.GenerateKey(rand.Reader, keySize)
+		publicKey = &key.PublicKey
+		privateKey = key
+		err = generateErr
 	case AlgorithmECDSA:
 		// In production: use elliptic curve
 		publicKey, privateKey, err = generateECKey(keySize)
@@ -225,7 +227,7 @@ func (m *KeyLifecycleManager) ActivateKey(keyID string) error {
 
 	key.Status = StatusActive
 	key.Lifecycle.Status = StatusActive
-	key.Lifecycle.ActivatedAt = &time.Now()
+	key.Lifecycle.ActivatedAt = time.Now()
 
 	return nil
 }
@@ -316,7 +318,7 @@ func (m *KeyLifecycleManager) RotateKey(keyID string) (*Key, error) {
 	// Activate new key
 	newKey.Status = StatusActive
 	newKey.Lifecycle.Status = StatusActive
-	newKey.Lifecycle.ActivatedAt = &now
+	newKey.Lifecycle.ActivatedAt = time.Now()
 
 	// Add new key
 	m.keys[newKey.ID] = newKey
@@ -386,11 +388,9 @@ func (m *KeyLifecycleManager) ValidateKeyAgainstPolicy(keyID, policyID string) (
 	}
 
 	// Check usage
-	if !containsKeyUsage(policy.AllowedUsages, KeyUsageAll) {
-		for _, usage := range key.Lifecycle.Usage {
-			if !containsKeyUsage(policy.AllowedUsages, usage) {
-				issues = append(issues, fmt.Sprintf("Usage %s not allowed by policy", usage))
-			}
+	for _, usage := range key.Lifecycle.Usage {
+		if !containsKeyUsage(policy.AllowedUsages, usage) {
+			issues = append(issues, fmt.Sprintf("Usage %s not allowed by policy", usage))
 		}
 	}
 
@@ -399,7 +399,7 @@ func (m *KeyLifecycleManager) ValidateKeyAgainstPolicy(keyID, policyID string) (
 
 // ExportKeyPEM exports a key in PEM format.
 func (m *KeyLifecycleManager) ExportKeyPEM(keyID string) ([]byte, error) {
-	key, err := m.GetKey(keyID)
+	_, err := m.GetKey(keyID)
 	if err != nil {
 		return nil, err
 	}
@@ -414,12 +414,12 @@ func (m *KeyLifecycleManager) ImportKeyPEM(pemData []byte, usage []KeyUsage) (*K
 	// In production: import actual key
 	// For demo: create placeholder key
 	key := &Key{
-		ID:         fmt.Sprintf("imported-%d", time.Now().UnixNano()),
-		Algorithm:  AlgorithmRSA,
-		KeySize:    2048,
-		Status:     StatusGenerated,
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(365 * 24 * time.Hour),
+		ID:        fmt.Sprintf("imported-%d", time.Now().UnixNano()),
+		Algorithm: AlgorithmRSA,
+		KeySize:   2048,
+		Status:    StatusGenerated,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
 		Lifecycle: &KeyLifecycle{
 			ID:        fmt.Sprintf("lifecycle-imported-%d", time.Now().UnixNano()),
 			Algorithm: AlgorithmRSA,
@@ -601,4 +601,14 @@ func GetLifecycle(lifecycle *KeyLifecycle) *KeyLifecycle {
 // GetKey returns key.
 func GetKey(key *Key) *Key {
 	return key
+}
+
+// generateECKey generates an ECDSA key (placeholder).
+func generateECKey(keySize int) (interface{}, interface{}, error) {
+	return nil, nil, fmt.Errorf("ECDSA generation not implemented")
+}
+
+// generateAESKey generates an AES key (placeholder).
+func generateAESKey(keySize int) (interface{}, interface{}, error) {
+	return nil, nil, fmt.Errorf("AES generation not implemented")
 }
