@@ -18,10 +18,10 @@ func TestNewKeyLifecycleManager(t *testing.T) {
 func TestAddKey(t *testing.T) {
 	manager := NewKeyLifecycleManager()
 	key := &Key{
-		ID:      "key-001",
+		ID:        "key-001",
 		Algorithm: AlgorithmRSA,
-		KeySize: 2048,
-		Status:  StatusGenerated,
+		KeySize:   2048,
+		Status:    StatusGenerated,
 		Lifecycle: &KeyLifecycle{
 			ID:        "lifecycle-001",
 			Algorithm: AlgorithmRSA,
@@ -88,13 +88,13 @@ func TestListKeys(t *testing.T) {
 func TestActivateKey(t *testing.T) {
 	manager := NewKeyLifecycleManager()
 	key := &Key{
-		ID:      "key-001",
+		ID:        "key-001",
 		Algorithm: AlgorithmRSA,
-		Status:  StatusGenerated,
+		Status:    StatusGenerated,
 		Lifecycle: &KeyLifecycle{
-			ID:       "lifecycle-001",
+			ID:        "lifecycle-001",
 			Algorithm: AlgorithmRSA,
-			Status:   StatusGenerated,
+			Status:    StatusGenerated,
 		},
 	}
 	manager.AddKey(key)
@@ -113,9 +113,9 @@ func TestActivateKey(t *testing.T) {
 func TestDeactivateKey(t *testing.T) {
 	manager := NewKeyLifecycleManager()
 	key := &Key{
-		ID:      "key-001",
+		ID:        "key-001",
 		Algorithm: AlgorithmRSA,
-		Status:  StatusActive,
+		Status:    StatusActive,
 		Lifecycle: &KeyLifecycle{
 			Algorithm: AlgorithmRSA,
 			Status:    StatusActive,
@@ -260,5 +260,108 @@ func TestKeyPolicy(t *testing.T) {
 	}
 	if policy.Name != "Test Policy" {
 		t.Errorf("Expected name 'Test Policy', got '%s'", policy.Name)
+	}
+}
+
+func TestGenerateKey(t *testing.T) {
+	manager := NewKeyLifecycleManager()
+
+	// Need a policy to generate keys
+	manager.AddPolicy(KeyPolicy{
+		ID:                "test-policy",
+		Name:              "Test",
+		AllowedAlgorithms: []KeyAlgorithm{AlgorithmRSA},
+		MinKeySize:        2048,
+		MaxKeySize:        4096,
+		AllowedUsages:     []KeyUsage{UsageEncryption},
+		MaxLifetime:       time.Hour * 24 * 30,
+	})
+
+	key, err := manager.GenerateKey(AlgorithmRSA, 2048, []KeyUsage{UsageEncryption})
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	if key.Algorithm != AlgorithmRSA {
+		t.Errorf("Expected Algorithm RSA, got %s", key.Algorithm)
+	}
+	if key.KeySize != 2048 {
+		t.Errorf("Expected KeySize 2048, got %d", key.KeySize)
+	}
+	if key.Status != StatusGenerated {
+		t.Errorf("Expected status 'generated', got '%s'", key.Status)
+	}
+}
+
+func TestRotateKey(t *testing.T) {
+	manager := NewKeyLifecycleManager()
+
+	manager.AddPolicy(KeyPolicy{
+		ID:                "test-policy",
+		Name:              "Test",
+		AllowedAlgorithms: []KeyAlgorithm{AlgorithmRSA},
+		MinKeySize:        2048,
+		MaxKeySize:        4096,
+		AllowedUsages:     []KeyUsage{UsageEncryption},
+		MaxLifetime:       time.Hour * 24 * 30,
+	})
+
+	key, _ := manager.GenerateKey(AlgorithmRSA, 2048, []KeyUsage{UsageEncryption})
+
+	manager.ActivateKey(key.ID)
+	rotatedKey, err := manager.RotateKey(key.ID)
+	if err != nil {
+		t.Fatalf("RotateKey failed: %v", err)
+	}
+
+	if rotatedKey.ID == key.ID {
+		t.Error("Expected a new key ID after rotation")
+	}
+
+	oldKey, _ := manager.GetKey(key.ID)
+	if oldKey.Status != StatusActive {
+		t.Errorf("Expected old key status 'active', got '%s'", oldKey.Status)
+	}
+	
+	if rotatedKey.Status != StatusActive {
+		t.Errorf("Expected new key status 'active', got '%s'", rotatedKey.Status)
+	}
+}
+
+func TestCheckKeyExpiration(t *testing.T) {
+	manager := NewKeyLifecycleManager()
+	
+	key := &Key{
+		ID:        "key-exp",
+		Algorithm: AlgorithmRSA,
+		Status:    StatusActive,
+		ExpiresAt: time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
+		Lifecycle: &KeyLifecycle{
+			Status: StatusActive,
+		},
+	}
+	manager.AddKey(key)
+
+	expiredKeys := manager.CheckKeyExpiration()
+	if len(expiredKeys) != 1 {
+		t.Fatalf("Expected 1 expired key, got %d", len(expiredKeys))
+	}
+
+	if expiredKeys[0].ID != "key-exp" {
+		t.Errorf("Expected expired key 'key-exp', got '%s'", expiredKeys[0].ID)
+	}
+}
+
+func TestListActiveKeys(t *testing.T) {
+	manager := NewKeyLifecycleManager()
+	
+	manager.AddKey(&Key{ID: "k1", Status: StatusActive})
+	manager.AddKey(&Key{ID: "k2", Status: StatusGenerated})
+	manager.AddKey(&Key{ID: "k3", Status: StatusActive})
+	manager.AddKey(&Key{ID: "k4", Status: StatusRevoked})
+
+	activeKeys := manager.ListActiveKeys()
+	if len(activeKeys) != 2 {
+		t.Errorf("Expected 2 active keys, got %d", len(activeKeys))
 	}
 }

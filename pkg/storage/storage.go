@@ -2,6 +2,8 @@
 package storage
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -15,27 +17,27 @@ import (
 type StorageBackend string
 
 const (
-	BackendFile StorageBackend = "file"
-	BackendMemory StorageBackend = "memory"
+	BackendFile       StorageBackend = "file"
+	BackendMemory     StorageBackend = "memory"
 	BackendEncryption StorageBackend = "encryption"
-	BackendHardware StorageBackend = "hardware"
+	BackendHardware   StorageBackend = "hardware"
 )
 
 // StorageConfig represents storage configuration.
 type StorageConfig struct {
-	Backend      StorageBackend
-	Path         string
+	Backend       StorageBackend
+	Path          string
 	EncryptionKey []byte
-	MaxKeys      int
-	CacheTTL     time.Duration
+	MaxKeys       int
+	CacheTTL      time.Duration
 }
 
 // KeyStorage manages key storage.
 type KeyStorage struct {
-	config    *StorageConfig
-	keys      map[string][]byte // keyID -> key data
-	lock      sync.RWMutex
-	metadata  map[string]KeyMetadata
+	config   *StorageConfig
+	keys     map[string][]byte // keyID -> key data
+	lock     sync.RWMutex
+	metadata map[string]KeyMetadata
 }
 
 // KeyMetadata represents key metadata.
@@ -266,28 +268,47 @@ func (s *FileStorage) ListKeyFiles() ([]string, error) {
 	return keyFiles, nil
 }
 
-// EncryptKey encrypts key data.
+// EncryptKey encrypts key data using AES-GCM.
 func EncryptKey(keyData []byte, encryptionKey []byte) ([]byte, error) {
-	// In production: use proper encryption (AES-GCM)
-	// For demo: base64 encode with XOR
-	encrypted := make([]byte, len(keyData))
-	for i := range keyData {
-		encrypted[i] = keyData[i] ^ encryptionKey[i%len(encryptionKey)]
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return nil, err
 	}
 
-	return encrypted, nil
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, aesgcm.NonceSize())
+	if _, err = rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	ciphertext := aesgcm.Seal(nil, nonce, keyData, nil)
+	// prepend nonce to ciphertext
+	return append(nonce, ciphertext...), nil
 }
 
-// DecryptKey decrypts key data.
+// DecryptKey decrypts key data using AES-GCM.
 func DecryptKey(encryptedData []byte, encryptionKey []byte) ([]byte, error) {
-	// In production: use proper decryption (AES-GCM)
-	// For demo: base64 decode with XOR
-	decrypted := make([]byte, len(encryptedData))
-	for i := range encryptedData {
-		decrypted[i] = encryptedData[i] ^ encryptionKey[i%len(encryptionKey)]
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return nil, err
 	}
 
-	return decrypted, nil
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonceSize := aesgcm.NonceSize()
+	if len(encryptedData) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	nonce, ciphertext := encryptedData[:nonceSize], encryptedData[nonceSize:]
+	return aesgcm.Open(nil, nonce, ciphertext, nil)
 }
 
 // GenerateRandomKey generates a random encryption key.

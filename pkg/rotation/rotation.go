@@ -8,50 +8,50 @@ import (
 
 // RotationPolicy represents a key rotation policy.
 type RotationPolicy struct {
-	ID                  string
-	Name                string
-	Description         string
-	RotationPeriod      time.Duration
-	MaxRotations        int
-	GracePeriod         time.Duration
-	NotifyBefore        time.Duration
-	AutoRotate          bool
-	Enabled             bool
-	BackwardCompatible  bool
-	CleanupOldKeys      bool
+	ID                 string
+	Name               string
+	Description        string
+	RotationPeriod     time.Duration
+	MaxRotations       int
+	GracePeriod        time.Duration
+	NotifyBefore       time.Duration
+	AutoRotate         bool
+	Enabled            bool
+	BackwardCompatible bool
+	CleanupOldKeys     bool
 }
 
 // RotationSchedule represents a key rotation schedule.
 type RotationSchedule struct {
-	KeyID           string
-	LastRotation    time.Time
-	NextRotation    time.Time
-	TotalRotations  int
-	MaxRotations    int
-	Status          string // scheduled, pending, completed, overdue
-	LastReason      string
-	NextReason      string
+	KeyID          string
+	LastRotation   time.Time
+	NextRotation   time.Time
+	TotalRotations int
+	MaxRotations   int
+	Status         string // scheduled, pending, completed, overdue
+	LastReason     string
+	NextReason     string
 }
 
 // RotationEvent represents a rotation event.
 type RotationEvent struct {
-	ID            string
-	KeyID         string
-	OldKeyID      string
-	NewKeyID      string
-	RotatedAt     time.Time
-	Reason        string
-	Status        string
-	Error         error
-	Metadata      map[string]string
+	ID        string
+	KeyID     string
+	OldKeyID  string
+	NewKeyID  string
+	RotatedAt time.Time
+	Reason    string
+	Status    string
+	Error     error
+	Metadata  map[string]string
 }
 
 // RotationManager manages key rotation.
 type RotationManager struct {
-	policies      map[string]RotationPolicy
-	schedules     map[string]*RotationSchedule
-	events        []RotationEvent
-	handlers      []RotationHandler
+	policies  map[string]RotationPolicy
+	schedules map[string]*RotationSchedule
+	events    []RotationEvent
+	handlers  []RotationHandler
 }
 
 // RotationHandler handles rotation events.
@@ -98,9 +98,9 @@ func (m *RotationManager) CreateSchedule(keyID string, policyID string) (*Rotati
 	}
 
 	schedule := &RotationSchedule{
-		KeyID:        keyID,
-		LastRotation: time.Time{},
-		NextRotation: time.Now().Add(policy.RotationPeriod),
+		KeyID:          keyID,
+		LastRotation:   time.Time{},
+		NextRotation:   time.Now().Add(policy.RotationPeriod),
 		TotalRotations: 0,
 		MaxRotations:   policy.MaxRotations,
 		Status:         "scheduled",
@@ -170,14 +170,14 @@ func (m *RotationManager) RotateKey(keyID string, newKeyID string, reason string
 
 	// Create rotation event
 	event := &RotationEvent{
-		ID:         fmt.Sprintf("rotate-%d", time.Now().UnixNano()),
-		KeyID:      keyID,
-		OldKeyID:   keyID,
-		NewKeyID:   newKeyID,
-		RotatedAt:  time.Now(),
-		Reason:     reason,
-		Status:     "completed",
-		Metadata:   make(map[string]string),
+		ID:        fmt.Sprintf("rotate-%d", time.Now().UnixNano()),
+		KeyID:     keyID,
+		OldKeyID:  keyID,
+		NewKeyID:  newKeyID,
+		RotatedAt: time.Now(),
+		Reason:    reason,
+		Status:    "completed",
+		Metadata:  make(map[string]string),
 	}
 
 	// Update schedule
@@ -342,43 +342,43 @@ func CreateDefaultPolicy() RotationPolicy {
 func CreateCommonPolicies() []RotationPolicy {
 	return []RotationPolicy{
 		{
-			ID:                "policy-90-days",
-			Name:              "90 Day Rotation",
-			Description:       "Rotate keys every 90 days",
-			RotationPeriod:    90 * 24 * time.Hour,
-			MaxRotations:      10,
-			GracePeriod:       7 * 24 * time.Hour,
-			NotifyBefore:      14 * 24 * time.Hour,
-			AutoRotate:        false,
-			Enabled:           true,
+			ID:                 "policy-90-days",
+			Name:               "90 Day Rotation",
+			Description:        "Rotate keys every 90 days",
+			RotationPeriod:     90 * 24 * time.Hour,
+			MaxRotations:       10,
+			GracePeriod:        7 * 24 * time.Hour,
+			NotifyBefore:       14 * 24 * time.Hour,
+			AutoRotate:         false,
+			Enabled:            true,
 			BackwardCompatible: true,
-			CleanupOldKeys:    true,
+			CleanupOldKeys:     true,
 		},
 		{
-			ID:                "policy-180-days",
-			Name:              "180 Day Rotation",
-			Description:       "Rotate keys every 180 days",
-			RotationPeriod:    180 * 24 * time.Hour,
-			MaxRotations:      8,
-			GracePeriod:       14 * 24 * time.Hour,
-			NotifyBefore:      30 * 24 * time.Hour,
-			AutoRotate:        true,
-			Enabled:           true,
+			ID:                 "policy-180-days",
+			Name:               "180 Day Rotation",
+			Description:        "Rotate keys every 180 days",
+			RotationPeriod:     180 * 24 * time.Hour,
+			MaxRotations:       8,
+			GracePeriod:        14 * 24 * time.Hour,
+			NotifyBefore:       30 * 24 * time.Hour,
+			AutoRotate:         true,
+			Enabled:            true,
 			BackwardCompatible: true,
-			CleanupOldKeys:    true,
+			CleanupOldKeys:     true,
 		},
 		{
-			ID:                "policy-365-days",
-			Name:              "Annual Rotation",
-			Description:       "Rotate keys annually",
-			RotationPeriod:    365 * 24 * time.Hour,
-			MaxRotations:      5,
-			GracePeriod:       30 * 24 * time.Hour,
-			NotifyBefore:      60 * 24 * time.Hour,
-			AutoRotate:        true,
-			Enabled:           true,
+			ID:                 "policy-365-days",
+			Name:               "Annual Rotation",
+			Description:        "Rotate keys annually",
+			RotationPeriod:     365 * 24 * time.Hour,
+			MaxRotations:       5,
+			GracePeriod:        30 * 24 * time.Hour,
+			NotifyBefore:       60 * 24 * time.Hour,
+			AutoRotate:         true,
+			Enabled:            true,
 			BackwardCompatible: false,
-			CleanupOldKeys:    false,
+			CleanupOldKeys:     false,
 		},
 	}
 }

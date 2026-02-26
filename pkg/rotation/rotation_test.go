@@ -224,8 +224,8 @@ func TestGetRotationPolicy(t *testing.T) {
 
 func TestGetRotationSchedule(t *testing.T) {
 	schedule := &RotationSchedule{
-		KeyID:   "key-001",
-		Status:  "scheduled",
+		KeyID:        "key-001",
+		Status:       "scheduled",
 		NextRotation: time.Now(),
 	}
 
@@ -237,10 +237,10 @@ func TestGetRotationSchedule(t *testing.T) {
 
 func TestGetRotationEvent(t *testing.T) {
 	event := &RotationEvent{
-		ID:      "event-001",
-		KeyID:   "key-001",
-		Status:  "completed",
-		Reason:  "Scheduled rotation",
+		ID:     "event-001",
+		KeyID:  "key-001",
+		Status: "completed",
+		Reason: "Scheduled rotation",
 	}
 
 	retrieved := GetRotationEvent(event)
@@ -307,5 +307,100 @@ func TestRotationEvent_Structure(t *testing.T) {
 	}
 	if event.Status != "completed" {
 		t.Errorf("Expected status 'completed', got '%s'", event.Status)
+	}
+}
+
+func TestRotateKey(t *testing.T) {
+	manager := NewRotationManager()
+	manager.AddPolicy(CreateDefaultPolicy())
+
+	// Create a schedule
+	_, err := manager.CreateSchedule("key-001", "default")
+	if err != nil {
+		t.Fatalf("Failed to create schedule: %v", err)
+	}
+
+	// Register a handler to verify it's called
+	handlerCalled := false
+	manager.RegisterHandler(func(event *RotationEvent) error {
+		handlerCalled = true
+		if event.NewKeyID != "key-002" {
+			t.Errorf("Expected NewKeyID 'key-002', got '%s'", event.NewKeyID)
+		}
+		return nil
+	})
+
+	// Perform rotation
+	event, err := manager.RotateKey("key-001", "key-002", "Routine rotation")
+	if err != nil {
+		t.Fatalf("RotateKey failed: %v", err)
+	}
+
+	if event.Status != "completed" {
+		t.Errorf("Expected status 'completed', got '%s'", event.Status)
+	}
+
+	if !handlerCalled {
+		t.Error("Expected handler to be called")
+	}
+
+	schedule, _ := manager.GetSchedule("key-001")
+	if schedule.TotalRotations != 1 {
+		t.Errorf("Expected TotalRotations to be 1, got %d", schedule.TotalRotations)
+	}
+}
+
+func TestCheckSchedules(t *testing.T) {
+	manager := NewRotationManager()
+	manager.AddPolicy(CreateDefaultPolicy())
+
+	manager.CreateSchedule("key-001", "default")
+	manager.CreateSchedule("key-002", "default")
+
+	// Set key-001 to be overdue
+	schedule, _ := manager.GetSchedule("key-001")
+	schedule.NextRotation = time.Now().Add(-1 * time.Hour)
+
+	overdue := manager.CheckSchedules()
+	if len(overdue) != 1 {
+		t.Fatalf("Expected 1 overdue schedule, got %d", len(overdue))
+	}
+
+	if overdue[0].KeyID != "key-001" {
+		t.Errorf("Expected 'key-001' to be overdue, got '%s'", overdue[0].KeyID)
+	}
+	
+	if overdue[0].Status != "overdue" {
+		t.Errorf("Expected status 'overdue', got '%s'", overdue[0].Status)
+	}
+}
+
+func TestGetRotationHistory(t *testing.T) {
+	manager := NewRotationManager()
+	manager.AddPolicy(CreateDefaultPolicy())
+	manager.CreateSchedule("key-001", "default")
+
+	manager.RotateKey("key-001", "key-002", "First rotation")
+	manager.RotateKey("key-001", "key-003", "Second rotation")
+
+	history := manager.GetRotationHistory("key-001")
+	if len(history) != 2 {
+		t.Fatalf("Expected history length 2, got %d", len(history))
+	}
+
+	if history[0].NewKeyID != "key-002" || history[1].NewKeyID != "key-003" {
+		t.Error("History events do not match expected keys")
+	}
+}
+
+func TestGenerateReport(t *testing.T) {
+	manager := NewRotationManager()
+	manager.AddPolicy(CreateDefaultPolicy())
+	manager.CreateSchedule("key-001", "default")
+	manager.RotateKey("key-001", "key-002", "Routine")
+
+	report := manager.GenerateReport()
+	if report == "" {
+		t.Error("Expected non-empty report")
 	}
 }

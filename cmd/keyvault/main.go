@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/hallucinaut/keyvault/pkg/lifecycle"
-	"github.com/hallucinaut/keyvault/pkg/storage"
 	"github.com/hallucinaut/keyvault/pkg/rotation"
+	"github.com/hallucinaut/keyvault/pkg/storage"
 )
 
 const version = "1.0.0"

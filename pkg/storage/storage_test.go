@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"bytes"
+	"os"
 	"testing"
 )
 
@@ -141,7 +143,6 @@ func TestDecodeKey(t *testing.T) {
 }
 
 func TestValidateKey(t *testing.T) {
-	// RSA 256 means 32 bytes minimum
 	keyData := make([]byte, 32)
 	valid := ValidateKey(keyData, "rsa", 256)
 	if !valid {
@@ -156,13 +157,74 @@ func TestNewStorageManager(t *testing.T) {
 	}
 }
 
-func TestStorageResult(t *testing.T) {
-	storage := NewKeyStorage(&StorageConfig{Backend: BackendMemory})
+func TestCrypto(t *testing.T) {
+	keyData := []byte("my-secret-key-data-to-encrypt")
+	encKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes for AES-256
 
-	storage.StoreKey("key-001", []byte("data"), KeyMetadata{ID: "key-001"})
+	encrypted, err := EncryptKey(keyData, encKey)
+	if err != nil {
+		t.Fatalf("EncryptKey failed: %v", err)
+	}
 
-	keys := storage.ListKeys()
-	if len(keys) != 1 {
-		t.Errorf("Expected 1 key, got %d", len(keys))
+	if bytes.Equal(encrypted, keyData) {
+		t.Fatal("Encrypted data is identical to plain data")
+	}
+
+	decrypted, err := DecryptKey(encrypted, encKey)
+	if err != nil {
+		t.Fatalf("DecryptKey failed: %v", err)
+	}
+
+	if !bytes.Equal(decrypted, keyData) {
+		t.Fatalf("Decrypted data does not match original. Got %s, want %s", string(decrypted), string(keyData))
+	}
+}
+
+func TestFileStorage(t *testing.T) {
+	dir, err := os.MkdirTemp("", "keyvault_storage_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	fs := NewFileStorage(dir)
+	keyID := "test-key-123"
+	keyData := []byte("file-storage-key-data")
+
+	// Test SaveKey
+	if err := fs.SaveKey(keyID, keyData); err != nil {
+		t.Fatalf("SaveKey failed: %v", err)
+	}
+
+	// Test ListKeyFiles
+	files, err := fs.ListKeyFiles()
+	if err != nil {
+		t.Fatalf("ListKeyFiles failed: %v", err)
+	}
+	if len(files) != 1 || files[0] != keyID {
+		t.Fatalf("Expected 1 key file '%s', got %v", keyID, files)
+	}
+
+	// Test LoadKey
+	loaded, err := fs.LoadKey(keyID)
+	if err != nil {
+		t.Fatalf("LoadKey failed: %v", err)
+	}
+	if !bytes.Equal(loaded, keyData) {
+		t.Fatalf("Loaded key mismatch. Got %s, want %s", string(loaded), string(keyData))
+	}
+
+	// Test DeleteKeyFile
+	if err := fs.DeleteKeyFile(keyID); err != nil {
+		t.Fatalf("DeleteKeyFile failed: %v", err)
+	}
+	
+	// Ensure list is empty
+	files, err = fs.ListKeyFiles()
+	if err != nil {
+		t.Fatalf("ListKeyFiles failed: %v", err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("Expected 0 key files after deletion, got %v", files)
 	}
 }
